@@ -9,12 +9,14 @@ from marche.models import Product, Role, User
 
 
 @pytest.fixture
-def app():
+def app(tmp_path):
     app = create_app(
         {
             "TESTING": True,
             "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
             "WTF_CSRF_ENABLED": False,
+            # テストの写真が marche/static/uploads に溜まらないように、テストごとの一時フォルダーに保存する
+            "UPLOAD_FOLDER": str(tmp_path / "uploads"),
         }
     )
     with app.app_context():
