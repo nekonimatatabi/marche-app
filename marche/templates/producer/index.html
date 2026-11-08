@@ -1,5 +1,39 @@
 {% extends "base.html" %}
 {% block title %}出品管理 | はちまん産直マルシェ{% endblock %}
 {% block content %}
-<h1>出品管理（準備中）</h1>
+<h1>出品管理</h1>
+<p><a href="{{ url_for('producer.new') }}" role="button">商品を登録する</a></p>
+{% if products %}
+<div class="overflow-auto">
+<table>
+  <thead>
+    <tr><th>商品名</th><th>価格</th><th>在庫</th><th>状態</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for product in products %}
+    <tr>
+      <td><a href="{{ url_for('producer.edit', product_id=product.id) }}">{{ product.name }}</a></td>
+      <td>{{ product.price|yen }}</td>
+      <td>{{ product.stock }}</td>
+      <td>{{ "公開中" if product.is_published else "非公開" }}</td>
+      <td>
+        <form method="post" action="{{ url_for('producer.toggle', product_id=product.id) }}" style="display:inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="secondary outline">{{ "非公開にする" if product.is_published else "公開する" }}</button>
+        </form>
+        {# 確認の文言に商品名を入れない。onsubmit の中は JavaScript として読まれ、自動エスケープでは守れないため #}
+        <form method="post" action="{{ url_for('producer.delete', product_id=product.id) }}" style="display:inline"
+              onsubmit="return confirm('この商品を削除しますか？')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="contrast outline">削除</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<p>まだ商品がありません。</p>
+{% endif %}
 {% endblock %}

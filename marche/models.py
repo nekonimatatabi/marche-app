@@ -3,8 +3,8 @@ from enum import StrEnum
 from zoneinfo import ZoneInfo
 
 from flask_login import UserMixin
-from sqlalchemy import String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from marche.extensions import db
@@ -36,6 +36,8 @@ class User(UserMixin, db.Model):
     role: Mapped[str] = mapped_column(String(20), default=Role.CUSTOMER)
     created_at: Mapped[datetime] = mapped_column(default=now_jst)
 
+    products: Mapped[list[Product]] = relationship(back_populates="producer")
+
     def set_password(self, password: str) -> None:
         self.password_hash = generate_password_hash(password)
 
@@ -53,3 +55,23 @@ class User(UserMixin, db.Model):
     @property
     def role_label(self) -> str:
         return ROLE_LABELS[Role(self.role)]
+
+
+class Product(db.Model):
+    __tablename__ = "products"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    # 出品した生産者。注文した人（orders.user_id）と区別するため producer_id と呼ぶ
+    producer_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(50))
+    description: Mapped[str] = mapped_column(Text, default="")
+    price: Mapped[int]  # 円、税込み
+    stock: Mapped[int] = mapped_column(default=0)  # いまある数
+    is_published: Mapped[bool] = mapped_column(default=False)
+    image_filename: Mapped[str | None] = mapped_column(String(100))
+    created_at: Mapped[datetime] = mapped_column(default=now_jst)
+    updated_at: Mapped[datetime] = mapped_column(default=now_jst, onupdate=now_jst)
+
+    producer: Mapped[User] = relationship(back_populates="products")

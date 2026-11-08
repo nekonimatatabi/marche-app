@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% from "_form_errors.html" import field %}
+{% block title %}{{ title }} | はちまん産直マルシェ{% endblock %}
+{% block content %}
+<h1>{{ title }}</h1>
+<form method="post" novalidate>
+  {{ form.hidden_tag() }}
+  {{ field(form.name) }}
+  {{ field(form.price) }}
+  {{ field(form.stock) }}
+  {{ field(form.description) }}
+  <label>{{ form.is_published() }} {{ form.is_published.label.text }}</label>
+  <button type="submit">保存する</button>
+</form>
+<p><a href="{{ url_for('producer.index') }}">出品管理へ戻る</a></p>
+{% endblock %}

@@ -47,7 +47,7 @@ def test_生産者は出品管理を開ける(client, producer, login):
     login(producer)
     response = client.get("/producer/products")
     assert response.status_code == 200
-    assert "出品管理（準備中）" in response.text
+    assert "<h1>出品管理</h1>" in response.text
 
 
 def test_購入者は出品管理を開けない(client, customer, login):
