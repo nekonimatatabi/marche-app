@@ -49,7 +49,27 @@
 
 ## 設計（Day4 以降に追記していく）
 
-- 仕様: `docs/spec/`
-- 画面一覧: `docs/design/screens.md`
-- データベース設計: `docs/design/database.md`
-- 用語: {{ 生産者、購入者、商品、カート、注文、注文明細 などの定義 }}
+- 仕様: `docs/spec/`（参考解答）。自分の設計は `docs/design/` にあり、実装はこちらに合わせる
+- 画面一覧: [docs/design/screens.md](docs/design/screens.md)
+- データベース設計: [docs/design/database.md](docs/design/database.md)
+- 用語: 生産者（producer。商品を出品する）、購入者（customer。商品を買う）、管理者（admin。全ての商品と注文を見る）、商品（products）、カート（セッションに `{"商品ID": 数量}` で持つ。テーブルにしない）、注文（orders。1回の支払いの単位）、注文明細（order_items。注文の中の1商品と数量）
+
+### 画面と URL
+
+- 画面と URL は screens.md のとおりにする。`/producer/` は生産者の画面、`/orders/` はログインユーザーの画面
+- 値を変える操作（カート、注文、公開の切り替え、削除、取り消し）は POST だけにする。GET で値を変えない
+- 商品の編集・削除・公開の切り替えは出品した生産者だけ（違えば 403）。注文は本人と管理者だけ（違えば 403）
+
+### データベース
+
+- 出品者は `products.producer_id`、注文者は `orders.user_id`（どちらも `users.id`）。名前で区別する
+- `orders.status` は `pending`（支払い待ち）→ `paid`（支払い済み）/ `cancelled`（取り消し）。値は StrEnum で定義する
+- 金額は円の整数。注文時点の商品名と単価は `order_items` に保存し、注文の表示と売上の集計には明細の値を使う
+- `products.stock` は「いまある数」。支払いが確定したときに減らす
+- 外部キーは、orders → order_items だけ cascade、ほかは restrict。SQLite は restrict を確かめないので、「注文がある商品は削除できない」はビューでも確かめる
+
+### 外部サービス
+
+- Stripe を呼ぶコードは `marche/services/payment.py` だけに書く（AI 機能を足すなら、Claude API は `marche/services/ai.py` だけ）
+- テストでは本物の API を呼ばず、`create_app({"PAYMENT_SERVICE": FakePayment()})` のように設定でフェイクに差し替える
+- （AI 機能を足した場合）AI の出力はそのまま保存・公開しない。人が確認してから保存する
