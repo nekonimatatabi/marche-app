@@ -13,6 +13,9 @@
       <ul><li><a href="{{ url_for('shop.index') }}"><strong>はちまん産直マルシェ</strong></a></li></ul>
       <ul>
         {% if current_user.is_authenticated %}
+          {% if current_user.is_producer %}
+            <li><a href="{{ url_for('producer.index') }}">出品管理</a></li>
+          {% endif %}
           <li>{{ current_user.name }}さん（{{ current_user.role_label }}）</li>
           <li>
             <form method="post" action="{{ url_for('auth.logout') }}" style="margin:0">
