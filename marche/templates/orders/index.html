@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}注文履歴 | はちまん産直マルシェ{% endblock %}
+{% block head %}
+<style>
+  /* 狭い画面で1文字ずつ折り返さないようにし、表は横にスクロールさせる */
+  .overflow-auto th, .overflow-auto td { white-space: nowrap; }
+</style>
+{% endblock %}
+{% block content %}
+<h1>注文履歴</h1>
+{% if orders %}
+<div class="overflow-auto">
+<table>
+  <thead>
+    <tr><th>注文番号</th><th>注文日時</th><th>合計</th><th>状態</th></tr>
+  </thead>
+  <tbody>
+    {% for order in orders %}
+    <tr>
+      <td><a href="{{ url_for('orders.show', order_id=order.id) }}">#{{ order.id }}</a></td>
+      <td>{{ order.created_at|datetime_ja }}</td>
+      <td>{{ order.total_amount|yen }}</td>
+      <td>{{ order.status_label }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<p>まだ注文はありません。</p>
+{% endif %}
+<p><a href="{{ url_for('shop.index') }}">商品の一覧へ</a></p>
+{% endblock %}

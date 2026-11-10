@@ -1,0 +1,18 @@
+{{ order.user.name }} 様
+
+はちまん産直マルシェをご利用いただき、ありがとうございます。
+お支払いが完了し、ご注文を承りました。
+
+注文番号: {{ order.id }}
+
+{% for item in order.items -%}
+・{{ item.product_name }}
+  {{ item.unit_price|yen }} × {{ item.quantity }} = {{ item.subtotal|yen }}
+{% endfor %}
+合計: {{ order.total_amount|yen }}
+
+ご注文の詳細は、こちらからご覧いただけます。
+{{ order_url }}
+
+--
+はちまん産直マルシェ

@@ -1,5 +1,6 @@
 import logging
 import os
+from datetime import datetime
 
 from flask import Flask, render_template
 
@@ -8,6 +9,8 @@ from marche.extensions import csrf, db, login_manager, migrate
 
 def create_app(config=None):
     app = Flask(__name__, instance_relative_config=True)
+    # 書き方の違い（1 / true / yes）で STARTTLS が切れて平文で送らないよう、どれも有効とみなす
+    mail_use_tls = os.environ.get("MAIL_USE_TLS", "1").lower() in ("1", "true", "yes")
     app.config.from_mapping(
         SECRET_KEY=os.environ.get("SECRET_KEY") or "dev",
         SQLALCHEMY_DATABASE_URI=os.environ.get(
@@ -21,6 +24,14 @@ def create_app(config=None):
         STRIPE_WEBHOOK_SECRET=os.environ.get("STRIPE_WEBHOOK_SECRET"),
         # 決済のサービス。None なら本物（services/payment.py）。テストではフェイクを渡す
         PAYMENT_SERVICE=None,
+        # メール。"log" はログに出すだけ（開発）、"smtp" は MAIL_SERVER で送る（本番）
+        MAIL_BACKEND=os.environ.get("MAIL_BACKEND", "log"),
+        MAIL_SERVER=os.environ.get("MAIL_SERVER"),
+        MAIL_PORT=int(os.environ.get("MAIL_PORT") or 587),
+        MAIL_USE_TLS=mail_use_tls,
+        MAIL_USERNAME=os.environ.get("MAIL_USERNAME"),
+        MAIL_PASSWORD=os.environ.get("MAIL_PASSWORD"),
+        MAIL_FROM=os.environ.get("MAIL_FROM"),
     )
     if config is not None:
         app.config.update(config)
@@ -41,6 +52,9 @@ def create_app(config=None):
 
     # ビューは current_app.extensions["payment"] 経由で呼ぶ（テストではフェイクに差し替わる）
     app.extensions["payment"] = app.config["PAYMENT_SERVICE"] or payment
+    if app.testing:
+        # テスト中のメールは送らずにここへ溜める（services/mail.py）。テストで件数を確かめる
+        app.extensions["mail_outbox"] = []
 
     from marche.views import auth, cart, orders, producer, shop, webhooks
 
@@ -54,6 +68,12 @@ def create_app(config=None):
     @app.template_filter("yen")
     def yen(value: int) -> str:
         return f"{value:,}円"
+
+    @app.template_filter("datetime_ja")
+    def datetime_ja(value: datetime) -> str:
+        # 「11月14日(土) 10:00」の形。日時は日本時間で保存しているので、形を変えるだけ
+        weekday = "月火水木金土日"[value.weekday()]
+        return f"{value.month}月{value.day}日({weekday}) {value:%H:%M}"
 
     @app.errorhandler(403)
     def forbidden(error):

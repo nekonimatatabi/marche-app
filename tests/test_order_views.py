@@ -1,7 +1,8 @@
+from datetime import datetime
 from types import SimpleNamespace
 
 from marche.extensions import db
-from marche.models import Order, OrderStatus, Role, User
+from marche.models import JST, Order, OrderStatus, Role, User
 from marche.services.inventory import available_stock, create_order
 from marche.services.payment import PaymentError
 
@@ -162,12 +163,72 @@ def test_決済ページを作れなければ注文を取り消してカート�
     assert "お支払いの準備に失敗しました" in text
 
 
-def test_GETでは注文を作れない(client, customer, producer, make_product, login):
+def test_GETでは注文を作らず注文履歴を出す(
+    client, customer, producer, make_product, login
+):
     product = make_product(producer, is_published=True)
     login(customer)
     set_cart(client, {product.id: 1})
-    assert client.get("/orders/").status_code == 405
+    response = client.get("/orders/")
+    assert response.status_code == 200
+    assert "注文履歴" in response.get_data(as_text=True)
     assert count_orders() == 0
+
+
+# 注文履歴（GET /orders/）
+
+
+def test_注文履歴に自分の注文だけが新しい順に出る(
+    client, customer, producer, make_product, login
+):
+    product = make_product(producer, price=180, stock=20, is_published=True)
+    # 日時は now_jst() と同じく、日本時間から tzinfo を外して保存する
+    older = create_order(customer, {product.id: 1})
+    older.created_at = datetime(2026, 11, 13, 9, 5, tzinfo=JST).replace(tzinfo=None)
+    newer = create_order(customer, {product.id: 3})
+    newer.created_at = datetime(2026, 11, 14, 10, 0, tzinfo=JST).replace(tzinfo=None)
+    newer.status = OrderStatus.PAID
+    others = create_order(make_other_customer(), {product.id: 2})
+    db.session.commit()
+    login(customer)
+    text = client.get("/orders/").get_data(as_text=True)
+    newer_link = f'href="/orders/{newer.id}"'
+    older_link = f'href="/orders/{older.id}"'
+    assert text.index(newer_link) < text.index(older_link)  # 新しい順
+    assert f'href="/orders/{others.id}"' not in text  # 他人の注文は出ない
+    assert "11月14日(土) 10:00" in text
+    assert "11月13日(金) 09:05" in text
+    assert "540円" in text
+    assert "支払い済み" in text
+    assert "支払い待ち" in text
+
+
+def test_管理者でも注文履歴には自分の注文だけが出る(
+    client, customer, admin, producer, make_product, login
+):
+    product = make_product(producer, is_published=True)
+    order = create_order(customer, {product.id: 1})
+    login(admin)
+    text = client.get("/orders/").get_data(as_text=True)
+    assert f'href="/orders/{order.id}"' not in text
+    assert "まだ注文はありません" in text
+
+
+def test_注文がなければメッセージを出す(client, customer, login):
+    login(customer)
+    assert "まだ注文はありません" in client.get("/orders/").get_data(as_text=True)
+
+
+def test_未ログインでは注文履歴を見られない(client):
+    response = client.get("/orders/")
+    assert response.status_code == 302
+    assert response.headers["Location"].startswith("/login")
+
+
+def test_ヘッダーの注文履歴のリンクはログイン中だけ出る(client, customer, login):
+    assert 'href="/orders/"' not in client.get("/").get_data(as_text=True)
+    login(customer)
+    assert 'href="/orders/"' in client.get("/").get_data(as_text=True)
 
 
 # カートの注文ボタン

@@ -28,6 +28,18 @@ def get_own_order_or_403(order_id: int) -> Order:
     return order
 
 
+@bp.route("/", methods=["GET"])
+@login_required
+def index():
+    """注文履歴。自分の注文だけを新しい順に（管理者でも自分の注文だけ）"""
+    orders = db.session.scalars(
+        db.select(Order)
+        .filter_by(user_id=current_user.id)
+        .order_by(Order.created_at.desc(), Order.id.desc())
+    ).all()
+    return render_template("orders/index.html", orders=orders)
+
+
 @bp.route("/", methods=["POST"])
 @login_required
 def create():

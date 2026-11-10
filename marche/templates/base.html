@@ -20,6 +20,7 @@
       <ul>
         <li><a href="{{ url_for('cart.show') }}">カート</a></li>
         {% if current_user.is_authenticated %}
+          <li><a href="{{ url_for('orders.index') }}">注文履歴</a></li>
           {% if current_user.is_producer %}
             <li><a href="{{ url_for('producer.index') }}">出品管理</a></li>
             <li><a href="{{ url_for('producer.sales') }}">売上</a></li>

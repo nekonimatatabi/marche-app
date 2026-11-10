@@ -9,6 +9,7 @@ from datetime import timedelta
 
 from marche.extensions import db
 from marche.models import Order, OrderItem, OrderStatus, Product, now_jst
+from marche.services.mail import send_order_paid
 
 logger = logging.getLogger(__name__)
 
@@ -178,4 +179,11 @@ def mark_as_paid(order: Order, payment_intent_id: str | None) -> bool:
         db.session.rollback()
         raise
     db.session.refresh(order)
+
+    # 確定させたときだけ（1回だけ）注文確認のメールを送る。
+    # メールを送れなくても、確定は取り消さない（ログに残す）。Webhook を 500 にもしない
+    try:
+        send_order_paid(order)
+    except Exception:
+        logger.exception("注文 %s の確認メールを送れませんでした", order.id)
     return True

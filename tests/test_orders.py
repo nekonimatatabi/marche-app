@@ -170,7 +170,17 @@ def test_支払い待ちでなければ取り消さない(customer, producer, ma
 # 支払いの確定（mark_as_paid）
 
 
-def test_支払い済みにして在庫を減らす(customer, producer, make_product):
+@pytest.fixture
+def in_request(app):
+    """mark_as_paid は確認メールの URL を url_for で作るので、リクエストの中として動かす
+    （本当に呼ばれるのは Webhook と完了ページのリクエストの中）"""
+    with app.test_request_context():
+        yield
+
+
+def test_支払い済みにして在庫を減らす(
+    app, in_request, customer, producer, make_product
+):
     product = make_product(producer, stock=5, is_published=True)
     order = create_order(customer, {product.id: 3})
     assert mark_as_paid(order, "pi_test_1") is True
@@ -179,18 +189,24 @@ def test_支払い済みにして在庫を減らす(customer, producer, make_pro
     assert order.paid_at is not None
     assert order.stripe_payment_intent_id == "pi_test_1"
     assert product.stock == 2
+    assert len(app.extensions["mail_outbox"]) == 1  # 注文確認のメール
 
 
-def test_2回目はFalseで在庫は1回だけ減る(customer, producer, make_product):
+def test_2回目はFalseで在庫は1回だけ減る(
+    app, in_request, customer, producer, make_product
+):
     product = make_product(producer, stock=5, is_published=True)
     order = create_order(customer, {product.id: 3})
     assert mark_as_paid(order, "pi_test_1") is True
     assert mark_as_paid(order, "pi_test_1") is False
     db.session.refresh(product)
     assert product.stock == 2
+    assert len(app.extensions["mail_outbox"]) == 1
 
 
-def test_取り消し済みの注文は支払い済みにしない(customer, producer, make_product):
+def test_取り消し済みの注文は支払い済みにしない(
+    app, in_request, customer, producer, make_product
+):
     product = make_product(producer, stock=5, is_published=True)
     order = create_order(customer, {product.id: 3})
     cancel(order)
@@ -199,9 +215,12 @@ def test_取り消し済みの注文は支払い済みにしない(customer, pro
     assert order.status == OrderStatus.CANCELLED
     assert order.paid_at is None
     assert product.stock == 5
+    assert app.extensions["mail_outbox"] == []
 
 
-def test_支払い済みのあともいま買える数は変わらない(customer, producer, make_product):
+def test_支払い済みのあともいま買える数は変わらない(
+    in_request, customer, producer, make_product
+):
     product = make_product(producer, stock=5, is_published=True)
     order = create_order(customer, {product.id: 3})
     assert available_stock(product) == 2  # 支払い待ちで押さえている

@@ -322,3 +322,53 @@ def test_取り消し済みの注文の完了ページ(client, customer, login, 
     text = open_complete(client, order).get_data(as_text=True)
     assert "この注文は取り消されています" in text
     assert fake_payment.retrieved == []
+
+
+# 注文確認のメール（テスト中は送らずに app.extensions["mail_outbox"] に溜まる）
+
+
+def test_Webhookで支払い済みになるとメールが1通溜まる(app, client, customer, order):
+    post_webhook(client, completed_event(order))
+    [sent] = app.extensions["mail_outbox"]
+    assert sent.to == customer.email
+    assert f"（注文番号 {order.id}）" in sent.subject
+    assert f"http://localhost/orders/{order.id}" in sent.body
+
+
+def test_同じWebhookが2回来てもメールは1通(app, client, order):
+    event = completed_event(order)
+    post_webhook(client, event)
+    post_webhook(client, event)
+    assert len(app.extensions["mail_outbox"]) == 1
+
+
+def test_確定しなければメールを送らない(app, client, order):
+    post_webhook(client, completed_event(order, payment_status="unpaid"))
+    cancel(order)
+    post_webhook(client, completed_event(order))  # 取り消し済みの注文
+    assert app.extensions["mail_outbox"] == []
+
+
+def test_完了ページで確定してもメールは1通でWebhookが来ても増えない(
+    app, client, customer, login, order, fake_payment
+):
+    fake_payment.sessions[order.stripe_checkout_session_id] = stripe_session(
+        order, "paid"
+    )
+    login(customer)
+    open_complete(client, order)
+    assert len(app.extensions["mail_outbox"]) == 1
+    post_webhook(client, completed_event(order))
+    assert len(app.extensions["mail_outbox"]) == 1
+
+
+def test_メールを作れなくても支払いは確定する(app, client, order, product, monkeypatch):
+    def broken(order):
+        raise RuntimeError("メールのテンプレートが壊れている")
+
+    monkeypatch.setattr("marche.services.inventory.send_order_paid", broken)
+    response = post_webhook(client, completed_event(order))
+    assert response.status_code == 200
+    refreshed(order, product)
+    assert order.status == OrderStatus.PAID
+    assert product.stock == 7
