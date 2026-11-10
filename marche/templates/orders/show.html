@@ -3,6 +3,9 @@
 {% block content %}
 <h1>注文 #{{ order.id }}</h1>
 <p>状態: <strong>{{ order.status_label }}</strong></p>
+{% if can_cancel %}
+<p><a href="{{ url_for('orders.cancel', order_id=order.id) }}">この注文を取り消す</a></p>
+{% endif %}
 {# 商品名と単価は、注文した時点の値（order_items に保存したもの）を出す。あとで商品が変わっても注文は変わらない #}
 <div class="overflow-auto">
 <table>

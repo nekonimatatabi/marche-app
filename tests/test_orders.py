@@ -2,7 +2,13 @@ import pytest
 
 from marche.extensions import db
 from marche.models import Order, OrderItem, OrderStatus
-from marche.services.inventory import MAX_QUANTITY, OrderError, create_order
+from marche.services.inventory import (
+    MAX_QUANTITY,
+    OrderError,
+    available_stock,
+    cancel,
+    create_order,
+)
 
 
 def count(model):
@@ -130,3 +136,31 @@ def test_1つでも駄目な商品があれば他の商品の注文も作られ�
     with pytest.raises(OrderError, match="りんごジュース 1L"):
         create_order(customer, {ok.id: 2, short.id: 5})
     assert_no_order()
+
+
+# 注文の取り消し（cancel）
+
+
+def test_支払い待ちの注文を取り消せる(customer, producer, make_product):
+    product = make_product(producer, is_published=True)
+    order = create_order(customer, {product.id: 1})
+    assert cancel(order) is True
+    assert order.status == OrderStatus.CANCELLED
+
+
+def test_取り消すと在庫の押さえが戻る(customer, producer, make_product):
+    product = make_product(producer, stock=5, is_published=True)
+    order = create_order(customer, {product.id: 3})
+    assert available_stock(product) == 2
+    cancel(order)
+    assert available_stock(product) == 5
+
+
+@pytest.mark.parametrize("status", [OrderStatus.PAID, OrderStatus.CANCELLED])
+def test_支払い待ちでなければ取り消さない(customer, producer, make_product, status):
+    product = make_product(producer, is_published=True)
+    order = create_order(customer, {product.id: 1})
+    order.status = status
+    db.session.commit()
+    assert cancel(order) is False
+    assert order.status == status

@@ -105,3 +105,20 @@ def create_order(user, cart: dict) -> Order:
         db.session.rollback()
         raise
     return order
+
+
+def cancel(order: Order) -> bool:
+    """支払い待ちの注文を取り消す。取り消せたら True、支払い済み・取り消し済みなら False。
+
+    「読んで、pending なら書き換える」と2段階にすると、その間に Webhook で支払い済みになった注文まで
+    取り消してしまう。読む・確かめる・書くを1つの UPDATE 文（WHERE status = 'pending'）にする。
+    在庫の押さえ（reserved_quantity）は支払い待ちだけを数えるので、取り消せば自動で戻る
+    """
+    result = db.session.execute(
+        db.update(Order)
+        .where(Order.id == order.id, Order.status == OrderStatus.PENDING)
+        .values(status=OrderStatus.CANCELLED)
+    )
+    db.session.commit()
+    db.session.refresh(order)
+    return result.rowcount == 1
