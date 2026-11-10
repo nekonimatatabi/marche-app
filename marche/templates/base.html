@@ -10,6 +10,18 @@
     /* Pico 側は [type="submit"] で指定しているので、同じ属性セレクターを付けて上書きする */
     nav form [type="submit"], td form [type="submit"] { width: auto; margin-bottom: 0; white-space: nowrap; }
     nav form [type="submit"] { padding: 0.25rem 0.75rem; }
+    /* ヘッダーの項目の中では折り返さない（狭い画面で「カ / ー / ト」のように1文字ずつ縦に並ぶのを防ぐ） */
+    nav li { white-space: nowrap; }
+    /* 狭い画面（スマホ）では、店名の下に項目を並べ、入りきらない分は次の行へ送る */
+    @media (max-width: 767px) {
+      nav { flex-wrap: wrap; }
+      nav ul:last-of-type {
+        flex-wrap: wrap;
+        /* 次の行に回ったとき、店名と左端をそろえる */
+        margin-left: calc(var(--pico-nav-element-spacing-horizontal) * -1);
+      }
+      nav li { padding-top: 0.25rem; padding-bottom: 0.25rem; }
+    }
   </style>
   {% block head %}{% endblock %}
 </head>
