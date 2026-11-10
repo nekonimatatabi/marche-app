@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 from marche.extensions import db
 from marche.models import Order, OrderStatus, Role, User
 from marche.services.inventory import available_stock, create_order
@@ -373,18 +375,20 @@ def test_未ログインでは中断ページを見られない(client, customer
     assert order.status == OrderStatus.PENDING
 
 
-# 支払いの完了（/orders/<id>/complete。08 章までは仮の画面）
+# 支払いの完了（/orders/<id>/complete。確定の処理のテストは test_webhook.py）
 
 
 def test_完了ページにお支払いを確認していますと出る(
-    client, customer, producer, make_product, login
+    client, customer, producer, make_product, login, fake_payment
 ):
     product = make_product(producer, is_published=True)
     order = make_order_with_session(customer, product)
-    login(customer)
-    response = client.get(
-        f"/orders/{order.id}/complete?session_id=cs_test_fake_{order.id}"
+    session_id = f"cs_test_fake_{order.id}"
+    fake_payment.sessions[session_id] = SimpleNamespace(
+        id=session_id, payment_status="unpaid", payment_intent=None
     )
+    login(customer)
+    response = client.get(f"/orders/{order.id}/complete?session_id={session_id}")
     assert response.status_code == 200
     assert "お支払いを確認しています" in response.get_data(as_text=True)
 

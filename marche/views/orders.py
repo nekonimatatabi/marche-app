@@ -12,7 +12,7 @@ from flask_login import current_user, login_required
 
 from marche.extensions import db
 from marche.models import Order, OrderStatus
-from marche.services.inventory import OrderError, create_order
+from marche.services.inventory import OrderError, create_order, mark_as_paid
 from marche.services.inventory import cancel as cancel_order
 from marche.services.payment import PaymentError
 from marche.views.cart import clear_cart, get_cart
@@ -69,9 +69,29 @@ def show(order_id: int):
 @bp.route("/<int:order_id>/complete")
 @login_required
 def complete(order_id: int):
-    """Stripe で支払ったあとに戻る画面。支払いの確認（Stripe への問い合わせ）は 08 章で足す"""
+    """Stripe で支払ったあとに戻る画面（?session_id=...）。
+    Webhook より先に来ることがあるので、まだ支払い待ちなら Stripe に問い合わせて確定する"""
     order = get_own_order_or_403(order_id)
-    return render_template("orders/complete.html", order=order)
+    session_id = request.args.get("session_id")
+    if (
+        order.status == OrderStatus.PENDING
+        and session_id
+        and session_id == order.stripe_checkout_session_id
+    ):
+        try:
+            session = current_app.extensions["payment"].retrieve_session(session_id)
+        except PaymentError as error:
+            flash(str(error))
+        else:
+            if session.payment_status == "paid":
+                # Webhook と同じ関数。どちらが先でも、確定は1回だけ
+                mark_as_paid(order, session.payment_intent)
+    return render_template(
+        "orders/complete.html",
+        order=order,
+        is_paid=order.status == OrderStatus.PAID,
+        is_pending=order.status == OrderStatus.PENDING,
+    )
 
 
 @bp.route("/<int:order_id>/cancel", methods=["GET", "POST"])

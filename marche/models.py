@@ -106,6 +106,8 @@ class Order(db.Model):
     stripe_checkout_session_id: Mapped[str | None] = mapped_column(
         String(255), unique=True
     )
+    # 支払いが確定したときに入れる（返金の拡張 E2 で使う）
+    stripe_payment_intent_id: Mapped[str | None] = mapped_column(String(255))
     paid_at: Mapped[datetime | None]
     # 支払い待ちの注文が在庫を押さえる時間（services/inventory.py）を数える起点
     created_at: Mapped[datetime] = mapped_column(default=now_jst)

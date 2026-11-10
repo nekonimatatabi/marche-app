@@ -42,9 +42,9 @@ def create_app(config=None):
     # ビューは current_app.extensions["payment"] 経由で呼ぶ（テストではフェイクに差し替わる）
     app.extensions["payment"] = app.config["PAYMENT_SERVICE"] or payment
 
-    from marche.views import auth, cart, orders, producer, shop
+    from marche.views import auth, cart, orders, producer, shop, webhooks
 
-    for module in (auth, shop, cart, orders, producer):
+    for module in (auth, shop, cart, orders, producer, webhooks):
         app.register_blueprint(module.bp)
 
     from marche import commands

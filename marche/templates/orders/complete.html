@@ -1,8 +1,42 @@
 {% extends "base.html" %}
-{% block title %}お支払いの確認 | はちまん産直マルシェ{% endblock %}
+{% block title %}{% if is_paid %}ご注文ありがとうございます{% else %}お支払いの確認{% endif %} | はちまん産直マルシェ{% endblock %}
+{% block head %}
+{% if is_pending %}
+{# 支払いの確定（Webhook）を待つ間、5秒ごとに読み込み直す。URL の session_id は残るので、毎回 Stripe に確かめ直す #}
+<meta http-equiv="refresh" content="5">
+{% endif %}
+{% endblock %}
 {% block content %}
-{# 仮の画面。Stripe に支払いを問い合わせて確定する処理は 08 章で足す #}
+{% if is_paid %}
+<h1>ご注文ありがとうございます</h1>
+<p>注文 #{{ order.id }} のお支払いが完了しました。</p>
+<div class="overflow-auto">
+<table>
+  <thead>
+    <tr><th>商品名</th><th>単価</th><th>数量</th><th>小計</th></tr>
+  </thead>
+  <tbody>
+    {% for item in order.items %}
+    <tr>
+      <td>{{ item.product_name }}</td>
+      <td>{{ item.unit_price|yen }}</td>
+      <td>{{ item.quantity }}</td>
+      <td>{{ item.subtotal|yen }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr><th colspan="3">合計</th><td><strong>{{ order.total_amount|yen }}</strong></td></tr>
+  </tfoot>
+</table>
+</div>
+<p><a href="{{ url_for('shop.index') }}">買い物を続ける</a></p>
+{% elif is_pending %}
 <h1>お支払いを確認しています</h1>
-<p>注文 #{{ order.id }}（合計 {{ order.total_amount|yen }}）のお支払いを確認しています。</p>
+<p aria-busy="true">注文 #{{ order.id }}（合計 {{ order.total_amount|yen }}）のお支払いを確認しています。このまま少しお待ちください（5秒ごとに読み込み直します）。</p>
+{% else %}
+<h1>この注文は取り消されています</h1>
+<p>注文 #{{ order.id }} は「{{ order.status_label }}」です。</p>
+{% endif %}
 <p><a href="{{ url_for('orders.show', order_id=order.id) }}">注文の詳細を見る</a></p>
 {% endblock %}

@@ -8,6 +8,7 @@ from marche.services.inventory import (
     available_stock,
     cancel,
     create_order,
+    mark_as_paid,
 )
 
 
@@ -164,3 +165,47 @@ def test_支払い待ちでなければ取り消さない(customer, producer, ma
     db.session.commit()
     assert cancel(order) is False
     assert order.status == status
+
+
+# 支払いの確定（mark_as_paid）
+
+
+def test_支払い済みにして在庫を減らす(customer, producer, make_product):
+    product = make_product(producer, stock=5, is_published=True)
+    order = create_order(customer, {product.id: 3})
+    assert mark_as_paid(order, "pi_test_1") is True
+    db.session.refresh(product)
+    assert order.status == OrderStatus.PAID
+    assert order.paid_at is not None
+    assert order.stripe_payment_intent_id == "pi_test_1"
+    assert product.stock == 2
+
+
+def test_2回目はFalseで在庫は1回だけ減る(customer, producer, make_product):
+    product = make_product(producer, stock=5, is_published=True)
+    order = create_order(customer, {product.id: 3})
+    assert mark_as_paid(order, "pi_test_1") is True
+    assert mark_as_paid(order, "pi_test_1") is False
+    db.session.refresh(product)
+    assert product.stock == 2
+
+
+def test_取り消し済みの注文は支払い済みにしない(customer, producer, make_product):
+    product = make_product(producer, stock=5, is_published=True)
+    order = create_order(customer, {product.id: 3})
+    cancel(order)
+    assert mark_as_paid(order, "pi_test_1") is False
+    db.session.refresh(product)
+    assert order.status == OrderStatus.CANCELLED
+    assert order.paid_at is None
+    assert product.stock == 5
+
+
+def test_支払い済みのあともいま買える数は変わらない(customer, producer, make_product):
+    product = make_product(producer, stock=5, is_published=True)
+    order = create_order(customer, {product.id: 3})
+    assert available_stock(product) == 2  # 支払い待ちで押さえている
+    mark_as_paid(order, "pi_test_1")
+    db.session.refresh(product)
+    # 在庫は 5 → 2 に減り、支払い済みの注文は押さえとして数えないので、いま買える数は 2 のまま
+    assert available_stock(product) == 2
