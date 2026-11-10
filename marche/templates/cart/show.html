@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}カート | はちまん産直マルシェ{% endblock %}
+{% block head %}
+<style>
+  /* 狭い画面で1文字ずつ折り返さないようにし、表は横にスクロールさせる */
+  .overflow-auto th, .overflow-auto td { white-space: nowrap; }
+  .overflow-auto td form [role="group"] { margin-bottom: 0; }
+  .overflow-auto td input[type="number"] { width: 5rem; margin-bottom: 0; }
+</style>
+{% endblock %}
+{% block content %}
+<h1>カート</h1>
+{% if rows %}
+<div class="overflow-auto">
+<table>
+  <thead>
+    <tr><th>商品名</th><th>単価</th><th>数量</th><th>小計</th></tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+    <tr>
+      <td><a href="{{ url_for('shop.show', product_id=row.product.id) }}">{{ row.product.name }}</a></td>
+      <td>{{ row.product.price|yen }}</td>
+      <td>
+        <form method="post" action="{{ url_for('cart.update', product_id=row.product.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <fieldset role="group">
+            <input type="number" name="quantity" value="{{ row.quantity }}" min="0" max="{{ row.limit }}"
+                   aria-label="{{ row.product.name }}の数量（0でカートから外す）">
+            <button type="submit" class="secondary outline">変更</button>
+          </fieldset>
+        </form>
+        {% if row.limit < 1 %}
+        <small><mark>売り切れ</mark>（数量を0にして外してください）</small>
+        {% elif row.quantity > row.limit %}
+        <small>いま買える数は{{ row.limit }}個です</small>
+        {% endif %}
+      </td>
+      <td>{{ row.subtotal|yen }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr><th colspan="3">合計</th><td><strong>{{ total|yen }}</strong></td></tr>
+  </tfoot>
+</table>
+</div>
+<p><small>数量を0にして「変更」を押すと、カートから外れます。</small></p>
+{% if current_user.is_authenticated %}
+<form method="post" action="{{ url_for('orders.create') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <button type="submit">注文して支払いへ進む</button>
+</form>
+{% else %}
+<p><a href="{{ url_for('auth.login', next=url_for('cart.show')) }}" role="button">ログインして注文する</a></p>
+{% endif %}
+{% else %}
+<p>カートは空です。</p>
+{% endif %}
+<p><a href="{{ url_for('shop.index') }}">買い物を続ける</a></p>
+{% endblock %}

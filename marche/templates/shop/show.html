@@ -15,7 +15,21 @@
     <p style="font-size: 1.5rem"><strong>{{ product.price|yen }}</strong></p>
     <p>生産者: {{ product.producer.name }}</p>
     <p>{% if stock > 0 %}在庫 {{ stock }}{% else %}<mark>売り切れ</mark>{% endif %}</p>
-    {# カートに入れるボタンと数量の選択は、カートの章で足す #}
+    {# 非公開の商品（出品者と管理者だけが見られる）と売り切れの商品は、カートに入れられない #}
+    {% if product.is_published and limit > 0 %}
+    <form method="post" action="{{ url_for('cart.add', product_id=product.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>
+        数量
+        <select name="quantity">
+          {% for n in range(1, limit + 1) %}
+          <option value="{{ n }}">{{ n }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button type="submit">カートに入れる</button>
+    </form>
+    {% endif %}
   </div>
 </div>
 {% if product.description %}
