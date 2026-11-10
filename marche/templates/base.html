@@ -22,6 +22,7 @@
         {% if current_user.is_authenticated %}
           {% if current_user.is_producer %}
             <li><a href="{{ url_for('producer.index') }}">出品管理</a></li>
+            <li><a href="{{ url_for('producer.sales') }}">売上</a></li>
           {% endif %}
           <li>{{ current_user.name }}さん（{{ current_user.role_label }}）</li>
           <li>
