@@ -5,11 +5,45 @@ from marche.extensions import db
 from marche.models import Product, Role, User
 
 # 本物の外部サービス（Stripe、拡張で足す Claude API）は、テストでは呼ばない。
-# 決済の章（と AI の拡張）で、ここにフェイク（偽物）のクラスを足し、create_app() の設定で差し替える。
+# フェイク（偽物）のクラスを作り、create_app() の設定で差し替える。
+
+
+class FakePayment:
+    """services/payment.py の代わり。本物と同じ名前の関数を持ち、呼ばれた引数を記録する"""
+
+    def __init__(self):
+        self.created = []  # create_checkout_session に渡された注文の ID
+        self.sessions = {}  # retrieve_session が返す {session_id: Session の代わり}
+        self.expired = []  # expire_session に渡された session_id
+        # 例外を入れておくと、どの関数もそれを投げる（失敗の場面を試す）
+        self.error = None
+
+    def _raise_error(self):
+        if self.error is not None:
+            raise self.error
+
+    def create_checkout_session(self, order):
+        self._raise_error()
+        self.created.append(order.id)
+        session_id = f"cs_test_fake_{order.id}"
+        return session_id, f"https://checkout.stripe.test/c/pay/{session_id}"
+
+    def retrieve_session(self, session_id):
+        self._raise_error()
+        return self.sessions[session_id]
+
+    def expire_session(self, session_id):
+        self._raise_error()
+        self.expired.append(session_id)
 
 
 @pytest.fixture
-def app(tmp_path):
+def fake_payment():
+    return FakePayment()
+
+
+@pytest.fixture
+def app(tmp_path, fake_payment):
     app = create_app(
         {
             "TESTING": True,
@@ -17,6 +51,10 @@ def app(tmp_path):
             "WTF_CSRF_ENABLED": False,
             # テストの写真が marche/static/uploads に溜まらないように、テストごとの一時フォルダーに保存する
             "UPLOAD_FOLDER": str(tmp_path / "uploads"),
+            # 環境変数に本物のキーがあっても使わない（間違って本物を呼んでも、通信せずに失敗する）
+            "STRIPE_SECRET_KEY": None,
+            "STRIPE_WEBHOOK_SECRET": "whsec_test",
+            "PAYMENT_SERVICE": fake_payment,
         }
     )
     with app.app_context():
