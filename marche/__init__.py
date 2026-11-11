@@ -33,9 +33,9 @@ def create_app(config=None):
     login_manager.login_view = "auth.login"
     login_manager.login_message = "ログインしてください"
 
-    from marche.views import auth, producer, shop
+    from marche.views import auth, cart, orders, producer, shop
 
-    for module in (auth, shop, producer):
+    for module in (auth, shop, cart, orders, producer):
         app.register_blueprint(module.bp)
 
     from marche import commands

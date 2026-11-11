@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}はちまん産直マルシェ{% endblock %}</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <style>
+    /* Pico は送信ボタンを幅いっぱいにして下に余白を付ける。ヘッダーと表の中では打ち消して横に並べる */
+    /* Pico 側は [type="submit"] で指定しているので、同じ属性セレクターを付けて上書きする */
+    nav form [type="submit"], td form [type="submit"] { width: auto; margin-bottom: 0; white-space: nowrap; }
+    nav form [type="submit"] { padding: 0.25rem 0.75rem; }
+  </style>
   {% block head %}{% endblock %}
 </head>
 <body>
@@ -12,6 +18,7 @@
     <nav>
       <ul><li><a href="{{ url_for('shop.index') }}"><strong>はちまん産直マルシェ</strong></a></li></ul>
       <ul>
+        <li><a href="{{ url_for('cart.show') }}">カート</a></li>
         {% if current_user.is_authenticated %}
           {% if current_user.is_producer %}
             <li><a href="{{ url_for('producer.index') }}">出品管理</a></li>

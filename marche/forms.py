@@ -90,3 +90,12 @@ class ProductForm(FlaskForm):
         ],
     )
     is_published = BooleanField("公開する")
+
+
+class CartQuantityForm(FlaskForm):
+    """カートに入れる・数量を変えるときの数量。
+    上限（MAX_QUANTITY と、いま買える数の小さいほう）は商品ごとに変わるので、ビューで確かめる"""
+
+    quantity = JaIntegerField(
+        "数量", validators=[InputRequired(message="数量を入力してください")]
+    )
