@@ -14,6 +14,7 @@ class FakePayment:
     def __init__(self):
         self.created = []  # create_checkout_session に渡された注文の ID
         self.sessions = {}  # retrieve_session が返す {session_id: Session の代わり}
+        self.retrieved = []  # retrieve_session に渡された session_id
         self.expired = []  # expire_session に渡された session_id
         # 例外を入れておくと、どの関数もそれを投げる（失敗の場面を試す）
         self.error = None
@@ -30,6 +31,7 @@ class FakePayment:
 
     def retrieve_session(self, session_id):
         self._raise_error()
+        self.retrieved.append(session_id)
         return self.sessions[session_id]
 
     def expire_session(self, session_id):

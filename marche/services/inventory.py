@@ -4,10 +4,14 @@ products.stock は「いまある数」で、支払いが確定したときに�
 注文を作るときと、一覧・詳細の表示では、stock から支払い待ちの数を引いた「いま買える数」を使う。
 """
 
+import logging
 from datetime import timedelta
 
 from marche.extensions import db
 from marche.models import Order, OrderItem, OrderStatus, Product, now_jst
+from marche.services.mail import send_order_paid
+
+logger = logging.getLogger(__name__)
 
 # 支払い待ちの注文が在庫を押さえる時間（分）。
 # Stripe の Checkout Session の有効期限（最短30分）より少し長くする。
@@ -122,3 +126,64 @@ def cancel(order: Order) -> bool:
     db.session.commit()
     db.session.refresh(order)
     return result.rowcount == 1
+
+
+def mark_as_paid(order: Order, payment_intent_id: str | None) -> bool:
+    """支払い待ちの注文を支払い済みにして、在庫を減らす。
+    自分が確定させたら True、既に確定済み・取り消し済みなら False（何もしない）。
+
+    Webhook と完了ページの両方から呼ぶ。同時に来ても、2回来ても、確定と在庫の減算は1回だけにする。
+    そのため cancel と同じく、条件付きの UPDATE 1文（WHERE status = 'pending'）の行数で判断する
+    """
+    try:
+        result = db.session.execute(
+            db.update(Order)
+            .where(Order.id == order.id, Order.status == OrderStatus.PENDING)
+            .values(
+                status=OrderStatus.PAID,
+                paid_at=now_jst(),
+                stripe_payment_intent_id=payment_intent_id,
+            )
+        )
+        if result.rowcount != 1:
+            db.session.rollback()
+            return False
+
+        for item in order.items:
+            if item.product.stock < item.quantity:
+                # 売れたのに在庫がない（支払い待ちの押さえの時間を過ぎてから支払われた、など）。
+                # コアではログに残すだけで、対策は拡張 E1
+                logger.warning(
+                    "注文 %s: 商品 %s の在庫が足りないため 0 にしました（在庫 %s、数量 %s）",
+                    order.id,
+                    item.product_id,
+                    item.product.stock,
+                    item.quantity,
+                )
+            # 在庫は DB の値から減らす（読んだ値から計算して書くと、同時の更新で数がずれる）。
+            # 足りなければ 0 で止める。CASE は SQLite でも MySQL でも動く
+            db.session.execute(
+                db.update(Product)
+                .where(Product.id == item.product_id)
+                .values(
+                    stock=db.case(
+                        (Product.stock >= item.quantity, Product.stock - item.quantity),
+                        else_=0,
+                    )
+                )
+            )
+        # 注文の確定と在庫の減算は、1回の commit にまとめる。
+        # 途中で失敗したら全部戻るので、Stripe が Webhook を再送したときにやり直せる
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+    db.session.refresh(order)
+
+    # 確定させたときだけ（1回だけ）注文確認のメールを送る。
+    # メールを送れなくても、確定は取り消さない（ログに残す）。Webhook を 500 にもしない
+    try:
+        send_order_paid(order)
+    except Exception:
+        logger.exception("注文 %s の確認メールを送れませんでした", order.id)
+    return True

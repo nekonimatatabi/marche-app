@@ -4,7 +4,7 @@ from flask_login import current_user
 from marche.decorators import role_required
 from marche.extensions import db
 from marche.forms import ProductForm
-from marche.models import Product, Role
+from marche.models import Order, OrderItem, OrderStatus, Product, Role
 from marche.uploads import delete_image, detect_media_type, save_image
 
 bp = Blueprint("producer", __name__, url_prefix="/producer")
@@ -121,10 +121,48 @@ def toggle(product_id: int):
 @role_required(Role.PRODUCER)
 def delete(product_id: int):
     product = get_own_product_or_403(product_id)
-    # 注文がある商品は削除できない、の確認は注文の章で足す（order_items ができてから）
+    # 注文（明細）がある商品は消さない。支払い待ち・取り消し済みの注文だけでも同じ。
+    # 明細 → 商品の外部キーは restrict だが、SQLite は確かめないので、ビューでも確かめる
+    has_orders = db.session.scalar(
+        db.select(OrderItem.id).filter_by(product_id=product.id).limit(1)
+    )
+    if has_orders is not None:
+        flash("注文がある商品は削除できません。非公開にしてください")
+        return redirect(url_for("producer.index"))
     filename = product.image_filename
     db.session.delete(product)
     db.session.commit()
     delete_image(filename)  # DB から消せてから写真を消す
     flash("削除しました")
     return redirect(url_for("producer.index"))
+
+
+@bp.route("/sales")
+@role_required(Role.PRODUCER)
+def sales():
+    # 自分の商品の、支払い済みの注文の明細だけを、商品ごとに SUM と GROUP BY で1回で集計する。
+    # 金額は明細の小計（注文した時点の単価 × 数量）を使う。あとで価格を変えても売上は変わらない
+    amount = db.func.sum(OrderItem.subtotal)
+    rows = db.session.execute(
+        db.select(
+            Product.id,
+            Product.name,
+            db.func.sum(OrderItem.quantity).label("quantity"),
+            amount.label("amount"),
+        )
+        .join(OrderItem, OrderItem.product_id == Product.id)
+        .join(Order, OrderItem.order_id == Order.id)
+        .where(Product.producer_id == current_user.id, Order.status == OrderStatus.PAID)
+        # 商品名は今の名前を出す。明細の product_name でまとめると、名前を変えた商品が2行に分かれる
+        .group_by(Product.id, Product.name)
+        .order_by(amount.desc(), Product.id)
+    ).all()
+    # 合計は、取り出した行を足す（SQL をもう一度投げない）
+    total_quantity = sum(row.quantity for row in rows)
+    total_amount = sum(row.amount for row in rows)
+    return render_template(
+        "producer/sales.html",
+        rows=rows,
+        total_quantity=total_quantity,
+        total_amount=total_amount,
+    )

@@ -2,6 +2,7 @@ import pytest
 
 from marche.extensions import db
 from marche.models import Product
+from marche.services.inventory import cancel, create_order
 
 
 def product_data(**fields):
@@ -102,6 +103,27 @@ def test_商品を削除できる(client, producer, login, make_product):
     response = client.post(f"/producer/products/{product.id}/delete")
     assert response.status_code == 302
     assert count_products() == 0
+
+
+def test_注文がある商品は削除できない(client, customer, producer, login, make_product):
+    product = make_product(producer, is_published=True)
+    create_order(customer, {product.id: 1})
+    login(producer)
+    response = client.post(f"/producer/products/{product.id}/delete")
+    assert response.headers["Location"] == "/producer/products"
+    assert count_products() == 1
+    text = client.get("/producer/products").get_data(as_text=True)
+    assert "注文がある商品は削除できません。非公開にしてください" in text
+
+
+def test_取り消し済みの注文しかない商品も削除できない(
+    client, customer, producer, login, make_product
+):
+    product = make_product(producer, is_published=True)
+    cancel(create_order(customer, {product.id: 1}))
+    login(producer)
+    client.post(f"/producer/products/{product.id}/delete")
+    assert count_products() == 1
 
 
 # 権限なし

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}売上 | はちまん産直マルシェ{% endblock %}
+{% block head %}
+<style>
+  /* 狭い画面で1文字ずつ折り返さないようにし、表は横にスクロールさせる */
+  .overflow-auto th, .overflow-auto td { white-space: nowrap; }
+</style>
+{% endblock %}
+{% block content %}
+<h1>売上</h1>
+<p>支払い済みの注文だけを数えています（支払い待ち・取り消しの注文は含みません）。</p>
+{% if rows %}
+<div class="overflow-auto">
+<table>
+  <thead>
+    <tr><th>商品名</th><th>販売数</th><th>売上</th></tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+    <tr>
+      <td>{{ row.name }}</td>
+      <td>{{ row.quantity }}</td>
+      <td>{{ row.amount|yen }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr><th>合計</th><td><strong>{{ total_quantity }}</strong></td><td><strong>{{ total_amount|yen }}</strong></td></tr>
+  </tfoot>
+</table>
+</div>
+{% else %}
+<p>まだ売上はありません。</p>
+{% endif %}
+<p><a href="{{ url_for('producer.index') }}">出品管理へ戻る</a></p>
+{% endblock %}
