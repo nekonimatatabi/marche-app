@@ -3,12 +3,14 @@ import os
 from datetime import datetime
 
 from flask import Flask, render_template
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from marche.extensions import csrf, db, login_manager, migrate
 
 
 def create_app(config=None):
     app = Flask(__name__, instance_relative_config=True)
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
     # 書き方の違い（1 / true / yes）で STARTTLS が切れて平文で送らないよう、どれも有効とみなす
     mail_use_tls = os.environ.get("MAIL_USE_TLS", "1").lower() in ("1", "true", "yes")
     app.config.from_mapping(
